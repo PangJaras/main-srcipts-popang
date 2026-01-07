@@ -1,6 +1,4 @@
 repeat task.wait(5) until game:IsLoaded()
-getgenv().LOADED = true
-warn("[", os.date("%H:%M:%S"), "] Log loadedsuccessfully")
 repeat task.wait() until _G.Horst_SetDescription
 
 local Players = game:GetService("Players")
@@ -17,6 +15,7 @@ local lastChangeTime = 0
 
 local waitingForDone = false
 local waitStartTime = 0
+
 
 local function GetSanguineArtMastery()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
@@ -78,7 +77,6 @@ task.spawn(function()
             lastDescTime = now
         end
 
-
         local meleeOK = true
         local heartOK = true
 
@@ -97,6 +95,7 @@ task.spawn(function()
 
         if allConditionsOK and not waitingForDone then
             warn("[POPANG] เงื่อนไขครบตาม Config → รอ 15 วิ ก่อน DONE")
+
 
             _G.Horst_SetDescription(
                 BuildDescription(hasMelee, mastery, heartCount, isBoat)
