@@ -1,15 +1,13 @@
-repeat task.wait(5) until game:IsLoaded() 
+repeat task.wait(5) until game:IsLoaded()
+getgenv().LOADED = true
+warn("[", os.date("%H:%M:%S"), "] Log loadedsuccessfully")
 repeat task.wait() until _G.Horst_SetDescription
-warn("ScriptLog Loaded!")
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local CommF = ReplicatedStorage.Remotes.CommF_
-
-getgenv().LOADED = true
-warn("[", os.date("%H:%M:%S"), "] Log loadedsuccessfully")
 
 local CFG = getgenv().PoPangConfig
 
