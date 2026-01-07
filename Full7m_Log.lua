@@ -1,4 +1,4 @@
-repeat task.wait(10) until game:IsLoaded()
+repeat task.wait(5) until game:IsLoaded() 
 repeat task.wait() until _G.Horst_SetDescription
 
 local Players = game:GetService("Players")
@@ -12,13 +12,10 @@ local CFG = getgenv().PoPangConfig
 local lastDescTime = 0
 local lastChangeTime = 0
 
--- โหมดรอ DONE
+
 local waitingForDone = false
 local waitStartTime = 0
 
--- =========================
--- Utils
--- =========================
 local function GetSanguineArtMastery()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     local character = LocalPlayer.Character
@@ -61,9 +58,7 @@ local function BuildDescription(hasMelee, mastery, heartCount, isBoat)
     return meleeText .. " , " .. heartText
 end
 
--- =========================
--- Main Loop
--- =========================
+
 task.spawn(function()
     while true do
         task.wait(1)
@@ -74,7 +69,6 @@ task.spawn(function()
         local heartCount = GetLeviathanHeartCount()
         local isBoat = CFG.EXCLUDE_USERNAMES[LocalPlayer.Name] == true
 
-        -- อัปเดต Description ทุก 5 วิ
         if now - lastDescTime >= 5 then
             _G.Horst_SetDescription(
                 BuildDescription(hasMelee, mastery, heartCount, isBoat)
@@ -82,9 +76,7 @@ task.spawn(function()
             lastDescTime = now
         end
 
-        -- =========================
-        -- Check เงื่อนไข
-        -- =========================
+
         local meleeOK = true
         local heartOK = true
 
@@ -100,13 +92,10 @@ task.spawn(function()
             (not CFG.Sanguine_Art or meleeOK)
             and (not CFG.Leviathan_Heart or heartOK)
 
-        -- =========================
-        -- เมื่อเงื่อนไขครบ → เริ่มรอ
-        -- =========================
+
         if allConditionsOK and not waitingForDone then
             warn("[POPANG] เงื่อนไขครบตาม Config → รอ 15 วิ ก่อน DONE")
 
-            -- บังคับอัปเดต Description ทันที
             _G.Horst_SetDescription(
                 BuildDescription(hasMelee, mastery, heartCount, isBoat)
             )
@@ -116,9 +105,7 @@ task.spawn(function()
             waitStartTime = now
         end
 
-        -- =========================
-        -- ครบเวลา → DONE
-        -- =========================
+
         if
             waitingForDone
             and _G.Horst_AccountChangeDone
