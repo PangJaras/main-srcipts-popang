@@ -1,5 +1,4 @@
 repeat task.wait() until game:IsLoaded()
-repeat task.wait() until _G.Horst_SetDescription
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -153,11 +152,40 @@ local function GetAwakenedMoves()
     return moves
 end
 
+local function GetFruitMastery()
+    local fruit = Data.DevilFruit.Value
+    if fruit == "" then return 0 end
+    
+    local Backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not Backpack then return 0 end
+    
+    local function ScanMastery(container)
+        for _, tool in ipairs(container:GetChildren()) do
+            if tool:IsA("Tool") and tool.ToolTip == "Blox Fruit" then
+                local level = tool:FindFirstChild("Level")
+                if level and level:IsA("IntValue") then
+                    return level.Value
+                end
+            end
+        end
+        return 0
+    end
+    
+    local mastery = ScanMastery(Backpack)
+    if mastery == 0 and LocalPlayer.Character then
+        mastery = ScanMastery(LocalPlayer.Character)
+    end
+    
+    return mastery
+end
+
 local function GetFruitInfo()
     local fruit = Data.DevilFruit.Value
     if fruit == "" then return "None", 0 end
 
+    local mastery = GetFruitMastery()
     local awakened = GetAwakenedMoves()
+    
     if #awakened > 0 then
         local hasTap = false
         for _, move in ipairs(awakened) do
@@ -170,13 +198,13 @@ local function GetFruitInfo()
         local maxMoves = hasTap and 6 or 5
         
         if #awakened >= maxMoves then
-            return fruit .. " [Full Awakened]", #awakened
+            return string.format("%s [%d] Full Awakened", fruit, mastery), #awakened
         else
-            return fruit .. " [Awakened " .. #awakened .. "/" .. maxMoves .. "]", #awakened
+            return string.format("%s [%d] Awakened %d/%d", fruit, mastery, #awakened, maxMoves), #awakened
         end
     end
 
-    return fruit, 0
+    return string.format("%s [%d]", fruit, mastery), 0
 end
 
 local MeleeList = {
@@ -359,10 +387,10 @@ local function UpdateStatus()
     -- ตรวจสอบ special items
     local specialItems = {}
     if HasItem("Cursed Dual Katana") then
-        table.insert(specialItems, "CDK")
+        table.insert(specialItems, "⚔️ CDK")
     end
     if HasItem("Shark Anchor") then
-        table.insert(specialItems, "SA")
+        table.insert(specialItems, "⚓️ SA")
     end
     
     -- ตรวจสอบผลไม้ใน Inventory ที่ตั้งไว้ใน config
@@ -393,7 +421,7 @@ local function UpdateStatus()
     local fruitText = GetFruitInfo()
 
     local description = string.format(
-        "🥊Melee [%d/%d],Beli: %s,Fragments: %s,Race: %s,Mirror: %s,Valkyrie: %s,Lever: %s,%sLevel: %s,Fruit: %s",
+        "🥊Melee [%d/%d], B:%s, F:%s, %s, Mirror%s, Valkyrie%s, Lever%s, %s Level: %s, Fruit: %s",
         meleeCount,
         #MeleeList,
         FormatNumber(beli),
@@ -443,9 +471,7 @@ local function UpdateStatus()
     end
 end
 
--- ========================
--- MAIN LOOP
--- ========================
+
 print("[Script Started] Config loaded successfully!")
 
 while true do
