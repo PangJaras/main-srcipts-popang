@@ -152,5 +152,5 @@ end
 
 while true do
 	pcall(Update)
-	task.wait(5)
+	task.wait(3)
 end
