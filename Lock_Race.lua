@@ -132,7 +132,7 @@ local function Update()
 		LastDesc = tick()
 		pcall(function()
 			_G.Horst_SetDescription(
-				string.format("🧬 Race: %s [%s] | %s", race, v, GroupName)
+				string.format("🧬 Race: %s [%s] : %s", race, v, GroupName)
 			)
 		end)
 		DebugPrint("Description updated:", race, v)
