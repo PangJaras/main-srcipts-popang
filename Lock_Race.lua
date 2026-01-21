@@ -8,86 +8,113 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Data = LocalPlayer:WaitForChild("Data")
 
-local CommF = function(command, ...)
-	return ReplicatedStorage.Remotes.CommF_:InvokeServer(command, ...)
+local CommF = function(...)
+	return ReplicatedStorage.Remotes.CommF_:InvokeServer(...)
 end
 
--- ================= FIND USER CONFIG =================
-local ActiveConfig = nil
-local ActiveGroupName = nil
+-- ===== หา Group =====
+local ActiveConfig, GroupName
 
-if _G.LockRaceConfig.Enable then
-	for _, group in ipairs(_G.LockRaceConfig.Groups or {}) do
-		for _, username in ipairs(group.Users or {}) do
-			if username == LocalPlayer.Name then
-				ActiveConfig = group
-				ActiveGroupName = group.Name or "Unknown"
-				break
-			end
+for _, group in ipairs(_G.LockRaceConfig.Groups or {}) do
+	for _, user in ipairs(group.Users or {}) do
+		if user == LocalPlayer.Name then
+			ActiveConfig = group
+			GroupName = group.Name
+			break
 		end
-		if ActiveConfig then break end
 	end
+	if ActiveConfig then break end
 end
 
--- ไม่อยู่ในกลุ่มใด → หยุด
-if not ActiveConfig then
+if not ActiveConfig or not _G.LockRaceConfig.Enable then
 	return
 end
--- ====================================================
 
-local DoneTriggered = false
+-- ===== Refresh Player Data =====
+local PlayerData = {}
 
--- ================= RACE INFO =================
+local function RefreshPlayerData()
+	for _, v in ipairs(Data:GetChildren()) do
+		pcall(function()
+			PlayerData[v.Name] = v.Value
+		end)
+	end
+end
+
+RefreshPlayerData()
+
+-- ===== Get Race Info =====
 local function GetRaceInfo()
-	local raceName = tostring(Data.Race.Value)
-	local raceV = "V1"
+	local race = tostring(Data.Race.Value)
+	local v = "V1"
 
 	if Data.Race:FindFirstChild("Evolved") then
-		raceV = "V2"
+		v = "V2"
 	end
-
 	if CommF("Wenlocktoad", "info") == -2 then
-		raceV = "V3"
+		v = "V3"
 	end
-
 	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("RaceTransformed") then
-		raceV = "V4"
+		v = "V4"
 	end
 
-	return raceName, raceV
+	return race, v
 end
--- =============================================
 
-local function CheckDone(raceName, raceV)
-	if raceName ~= ActiveConfig.Race then
-		return false
+-- ===== Auto Roll Race =====
+local Rolling = false
+
+local function AutoRollRace()
+	local auto = ActiveConfig.AutoRoll
+	if not auto or not auto.Enable or Rolling then return end
+
+	RefreshPlayerData()
+
+	if PlayerData.Fragments < (auto.MinFragments or 3500) then
+		return
 	end
+
+	if table.find(auto.ForceRace or {}, PlayerData.Race) then
+		return
+	end
+
+	Rolling = true
+	CommF("BlackbeardReward", "Reroll", "2")
+	task.wait(6)
+	RefreshPlayerData()
+	Rolling = false
+end
+
+-- ===== Check Done =====
+local DoneTriggered = false
+
+local function CheckDone(race, v)
+	if race ~= ActiveConfig.Race then return false end
 
 	if ActiveConfig.Lock_V then
-		return raceV == ActiveConfig.Ability
+		return v == ActiveConfig.Ability
 	end
 
 	if ActiveConfig.Ability == "V1" then
 		return true
 	end
 
-	return raceV == ActiveConfig.Ability
+	return v == ActiveConfig.Ability
 end
 
+-- ===== Update Description =====
 local function UpdateDescription()
-	local raceName, raceV = GetRaceInfo()
-	local message = string.format(
-		"🧬 Race: %s [%s]",
-		raceName,
-		raceV
-	)
+	local race, v = GetRaceInfo()
 
-	-- อัปเดตก่อนเสมอ
 	pcall(function()
-		_G.Horst_SetDescription(message)
+		_G.Horst_SetDescription(
+			string.format("🧬 Race: %s [%s] | %s", race, v, GroupName)
+		)
 	end)
 
-	if not DoneTriggered and CheckDone(raceName, raceV) then
+	AutoRollRace()
+
+	if not DoneTriggered and CheckDone(race, v) then
 		DoneTriggered = true
 		task.wait(0.2)
 		pcall(function()
