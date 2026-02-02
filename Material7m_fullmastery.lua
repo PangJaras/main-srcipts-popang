@@ -605,11 +605,54 @@ task.spawn(function()
 
     task.wait(1)
 
-    warn("Tweening to Shafi...")
-    updateStatusUI("Status: Going to Shafi", nil)
-    showNotification("Going to Shafi...", 3)
-    TweenTo(SHAFI_CFRAME)
+    -- Loop TweenTo จนกว่าจะถึง Shafi หรือซื้อสำเร็จ
+    local reachedShafi = false
+    local purchaseComplete = false
+    
+    task.spawn(function()
+        while not purchaseComplete do
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local distance = (hrp.Position - SHAFI_CFRAME.Position).Magnitude
+                
+                -- ถ้าอยู่ไกลจาก Shafi เกิน 50 studs ให้ tween ใหม่
+                if distance > 50 then
+                    warn("Distance to Shafi:", distance, "- Tweening again...")
+                    updateStatusUI("Status: Going to Shafi", nil)
+                    showNotification("Going to Shafi...", 3)
+                    
+                    pcall(function()
+                        TweenTo(SHAFI_CFRAME)
+                    end)
+                    
+                    reachedShafi = true
+                else
+                    if not reachedShafi then
+                        warn("Reached Shafi!")
+                        reachedShafi = true
+                    end
+                end
+            else
+                -- ถ้าตัวละครหายไป (ตาย) รอให้เกิดใหม่
+                warn("Character died! Waiting for respawn...")
+                updateStatusUI("Status: Respawning...", nil)
+                
+                repeat task.wait(1) until LocalPlayer.Character
+                
+                warn("Respawned! Flying up again...")
+                task.wait(1)
+                FlyUp(120)
+                task.wait(1)
+            end
+            
+            task.wait(2)
+        end
+    end)
 
+    -- รอให้ถึง Shafi ครั้งแรก
+    repeat task.wait(1) until reachedShafi
+    
     task.wait(1)
 
     warn("Start buying Sanguine Art...")
@@ -624,6 +667,9 @@ task.spawn(function()
             warn("Sanguine Art acquired!")
             showNotification("Sanguine Art Acquired!", 5)
             updateStatusUI("Status: Purchase Complete!", nil)
+            
+            -- หยุด loop TweenTo
+            purchaseComplete = true
             
             -- บันทึกว่าซื้อแล้ว
             PlayerData.HasPurchased = true
