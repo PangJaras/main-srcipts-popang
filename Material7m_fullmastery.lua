@@ -336,79 +336,6 @@ local function TweenTo(cf)
     bodyVel:Destroy()
 end
 
-local function IsNearShafi()
-    local char = LocalPlayer.Character
-    if not char then return false end
-    
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    local distance = (hrp.Position - SHAFI_CFRAME.Position).Magnitude
-    return distance < 50 -- ถือว่าใกล้ถ้าห่างน้อยกว่า 50 studs
-end
-
-local function SafeTweenToShafi()
-    local maxAttempts = 10
-    local attempt = 0
-    
-    while attempt < maxAttempts do
-        attempt = attempt + 1
-        
-        -- เช็คว่าอยู่ใกล้ Shafi แล้วหรือยัง
-        if IsNearShafi() then
-            warn("Already near Shafi!")
-            showNotification("Arrived at Shafi!", 2)
-            return true
-        end
-        
-        warn("Tween attempt", attempt, "/", maxAttempts)
-        updateStatusUI("Status: Going to Shafi (" .. attempt .. "/" .. maxAttempts .. ")", nil)
-        
-        local success = pcall(function()
-            -- รอให้ตัวละครพร้อม
-            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            local hrp = char:WaitForChild("HumanoidRootPart", 10)
-            
-            if not hrp then
-                warn("HumanoidRootPart not found, waiting for respawn...")
-                task.wait(5)
-                return
-            end
-            
-            -- Bay ขึ้นก่อน Tween
-            FlyUp(120)
-            task.wait(0.5)
-            
-            -- Tween ไป Shafi
-            TweenTo(SHAFI_CFRAME)
-        end)
-        
-        if not success then
-            warn("Tween failed, retrying in 3 seconds...")
-            showNotification("Tween failed, retrying...", 3)
-            task.wait(3)
-        else
-            task.wait(1)
-        end
-        
-        -- เช็คว่าถึงแล้วหรือยัง
-        if IsNearShafi() then
-            warn("Successfully reached Shafi!")
-            showNotification("Arrived at Shafi!", 2)
-            return true
-        end
-        
-        warn("Not at Shafi yet, retrying...")
-        task.wait(2)
-    end
-    
-    warn("Failed to reach Shafi after", maxAttempts, "attempts")
-    showNotification("Failed to reach Shafi! Hopping...", 3)
-    task.wait(2)
-    HopServer()
-    return false
-end
-
 -- ฟังก์ชันโหลด loadstring
 local function ExecuteLoadString(url)
     local success, result = pcall(function()
@@ -679,12 +606,9 @@ task.spawn(function()
     task.wait(1)
 
     warn("Tweening to Shafi...")
-    local reachedShafi = SafeTweenToShafi()
-    
-    if not reachedShafi then
-        warn("Could not reach Shafi, script stopped")
-        return
-    end
+    updateStatusUI("Status: Going to Shafi", nil)
+    showNotification("Going to Shafi...", 3)
+    TweenTo(SHAFI_CFRAME)
 
     task.wait(1)
 
@@ -693,18 +617,6 @@ task.spawn(function()
     showNotification("Buying Sanguine Art...", 3)
     
     while true do
-        -- เช็คว่ายังอยู่ใกล้ Shafi หรือไม่
-        if not IsNearShafi() then
-            warn("Too far from Shafi! Returning...")
-            showNotification("Returning to Shafi...", 3)
-            
-            local returnSuccess = SafeTweenToShafi()
-            if not returnSuccess then
-                warn("Failed to return to Shafi")
-                return
-            end
-        end
-        
         local result = CommF:InvokeServer("BuySanguineArt")
         warn("Buy Result:", result)
 
