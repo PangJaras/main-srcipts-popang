@@ -429,26 +429,43 @@ task.spawn(function()
     
     -- เช็คว่าซื้อหมัดไปแล้วและ hop แล้วหรือยัง
     if PlayerData.HasPurchased and PlayerData.HasHopped then
-        -- ถ้าซื้อไปแล้วและ hop แล้ว ให้ใช้ LoadString3
-        warn("Already purchased and hopped! Using LoadString3")
-        currentMode = "LoadString3"
-        selectedLoadString = Config.LoadString3
+        -- ถ้าซื้อไปแล้วและ hop แล้ว ให้เช็คว่ามี Sanguine Art จริงหรือไม่
+        warn("Already purchased and hopped! Checking if Sanguine Art is in backpack...")
         
-        -- สร้าง UI สำหรับ Farm Mastery (ไม่มี debug)
-        createStatusUI("Status: Farm Mastery", nil)
+        local hasSanguineArt = HasSanguineArtInBackpack()
         
-        if selectedLoadString and selectedLoadString ~= "" then
-            warn("Executing LoadString3...")
-            showNotification("Starting Farm Mastery...", 3)
-            ExecuteLoadString(selectedLoadString)
+        if hasSanguineArt then
+            -- ถ้ามี Sanguine Art แล้ว ให้ใช้ LoadString3
+            warn("Sanguine Art found in backpack! Using LoadString3")
+            currentMode = "LoadString3"
+            selectedLoadString = Config.LoadString3
+            
+            -- สร้าง UI สำหรับ Farm Mastery (ไม่มี debug)
+            createStatusUI("Status: Farm Mastery", nil)
+            
+            if selectedLoadString and selectedLoadString ~= "" then
+                warn("Executing LoadString3...")
+                showNotification("Starting Farm Mastery...", 3)
+                ExecuteLoadString(selectedLoadString)
+            else
+                warn("LoadString3 is empty or not configured")
+                showNotification("LoadString3 not configured!", 3)
+            end
+            
+            warn("Script completed - Sanguine Art process finished")
+            return
         else
-            warn("LoadString3 is empty or not configured")
-            showNotification("LoadString3 not configured!", 3)
+            -- ถ้าไม่มี Sanguine Art ให้รีเซ็ตข้อมูลและไปซื้อใหม่
+            warn("Sanguine Art not found in backpack! Resetting data and going to buy...")
+            PlayerData.HasPurchased = false
+            PlayerData.HasHopped = false
+            SavePlayerData(PlayerData)
+            showNotification("Sanguine Art not found! Going to buy...", 3)
+            -- ไม่ return เพื่อให้ทำงานต่อไปซื้อ
         end
-        
-        warn("Script completed - Sanguine Art process finished")
-        return
-    elseif response == 1 then
+    end
+    
+    if response == 1 then
         -- ถ้า response = 1 แสดงว่าซื้อไปแล้ว
         warn("Sanguine Art already purchased!")
         
@@ -457,31 +474,10 @@ task.spawn(function()
             SavePlayerData(PlayerData)
         end
         
-        -- เช็คว่ามี Sanguine Art ใน Backpack หรือยัง
-        local hasSanguineArt = HasSanguineArt()
-        
-        if not hasSanguineArt then
-            warn("Response = 1 but no Sanguine Art in Backpack!")
-            warn("Need to buy Sanguine Art first before hopping...")
-            showNotification("Buying Sanguine Art...", 3)
-            
-            -- ไปซื้อ Sanguine Art ก่อน
-            -- ข้ามไปทำงานด้านล่างเหมือนปกติ
-            currentMode = "LoadString2"
-            selectedLoadString = Config.LoadString2
-            
-            local debugInfo = string.format("Response1: %s\nResponse2: %s\nBuying first!", 
-                tostring(response), tostring(response))
-            createStatusUI("Status: Need to Buy First", debugInfo)
-            
-            if selectedLoadString and selectedLoadString ~= "" then
-                warn("Executing LoadString2...")
-                ExecuteLoadString(selectedLoadString)
-            end
-        elseif not PlayerData.HasHopped then
-            -- ถ้ามี Sanguine Art แล้วและยังไม่ได้ hop ให้ hop
-            warn("Has Sanguine Art! Hopping server...")
-            showNotification("Has Sanguine Art! Hopping...", 3)
+        -- ถ้ายังไม่ได้ hop ให้ hop
+        if not PlayerData.HasHopped then
+            warn("Need to hop server first...")
+            showNotification("Purchased! Hopping server...", 3)
             task.wait(2)
             HopServer()
             return
@@ -686,22 +682,11 @@ task.spawn(function()
 
         if result == 1 or result == 2 then
             warn("Sanguine Art acquired!")
-            
-            -- เช็คว่ามี Sanguine Art ใน Backpack จริงหรือไม่
-            task.wait(1) -- รอให้ item เข้า backpack
-            
-            local hasSanguineArt = HasSanguineArt()
-            
-            if not hasSanguineArt then
-                warn("Purchase success but item not in backpack! Retrying...")
-                showNotification("Item not received! Retrying...", 3)
-                task.wait(3)
-                -- ลอง buy อีกครั้ง
-                continue
-            end
-            
             showNotification("Sanguine Art Acquired!", 5)
             updateStatusUI("Status: Purchase Complete!", nil)
+            
+            -- หยุด loop TweenTo
+            purchaseComplete = true
             
             -- บันทึกว่าซื้อแล้ว
             PlayerData.HasPurchased = true
