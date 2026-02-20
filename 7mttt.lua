@@ -230,24 +230,16 @@ end
 -- โหลดข้อมูลผู้เล่น
 local PlayerData = LoadPlayerData()
 
--- ฟังก์ชันเช็คว่ามี Sanguine Art หรือยัง
-local function HasSanguineArt()
-    local hasSanguine = false
-    pcall(function()
-        for _, item in next, CommF:InvokeServer("getInventory") do
-            if item.Type == "Fighting Style" and item.Name == "Sanguine Art" then
-                hasSanguine = true
-                break
-            end
-        end
-    end)
-    return hasSanguine
-end
+-- ฟังก์ชันนับ Leviathan Heart (แก้ไขแล้ว)
+local function GetLeviathanHeartCount()
     local count = 0
     pcall(function()
-        for _, item in next, CommF:InvokeServer("getInventory") do
-            if item.Type == "Material" and item.Name == "Leviathan Heart" then
-                count += item.Count or 1
+        local inventory = CommF:InvokeServer("getInventory")
+        if inventory then
+            for _, item in pairs(inventory) do
+                if item.Type == "Material" and item.Name == "Leviathan Heart" then
+                    count = count + (item.Count or 1)
+                end
             end
         end
     end)
@@ -378,7 +370,7 @@ function HopServer()
     local success, result = pcall(function()
         local servers = {}
         local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-        local data = HttpService:JsonDecode(req)
+        local data = HttpService:JSONDecode(req)
         
         if data and data.data then
             for _, server in pairs(data.data) do
@@ -468,146 +460,10 @@ task.spawn(function()
             SavePlayerData(PlayerData)
         end
         
-        -- เช็คว่ามี Sanguine Art ในตัวจริงหรือไม่
-        local hasSanguine = HasSanguineArt()
-        warn("Has Sanguine Art in inventory:", hasSanguine)
-        
-        -- ถ้า response = 1 แต่ไม่มี Sanguine Art ให้บินไปซื้อก่อน
-        if not hasSanguine then
-            warn("Response is 1 but don't have Sanguine Art! Going to buy...")
-            showNotification("Need to collect Fighting Style!", 5)
-            
-            -- บินไปซื้อที่ Shafi
-            warn("Checking current location...")
-            local isInSea3 = IsInThirdSea()
-            
-            if not isInSea3 then
-                warn("Not in Third Sea, traveling...")
-                showNotification("Traveling to Third Sea...", 3)
-                updateStatusUI("Status: Traveling to Sea 3", nil)
-                
-                pcall(function()
-                    CommF:InvokeServer("TravelZou")
-                end)
-                
-                task.wait(15)
-                
-                -- เช็คอีกครั้งหลัง TravelZou
-                local maxWaitTime = 60
-                local waitedTime = 0
-                
-                repeat
-                    task.wait(2)
-                    waitedTime = waitedTime + 2
-                    isInSea3 = IsInThirdSea()
-                    
-                    if waitedTime >= maxWaitTime and not isInSea3 then
-                        warn("Failed to reach Third Sea after 60 seconds")
-                        showNotification("Failed to travel! Retrying...", 3)
-                        pcall(function()
-                            CommF:InvokeServer("TravelZou")
-                        end)
-                        waitedTime = 0
-                    end
-                until isInSea3 or waitedTime >= 120
-                
-                if not isInSea3 then
-                    warn("Still not in Third Sea after multiple attempts, hopping server...")
-                    showNotification("Travel failed! Hopping server...", 3)
-                    task.wait(2)
-                    HopServer()
-                    return
-                end
-            else
-                warn("Already in Third Sea!")
-            end
-
-            warn("Now in Third Sea - PlaceId:", game.PlaceId)
-            showNotification("Arrived at Third Sea!", 3)
-
-            warn("Flying up...")
-            updateStatusUI("Status: Flying Up", nil)
-            FlyUp(120)
-
-            task.wait(1)
-
-            -- Loop TweenTo จนกว่าจะถึง Shafi
-            local reachedShafi = false
-            local collectionComplete = false
-            
-            task.spawn(function()
-                while not collectionComplete do
-                    local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        local hrp = char.HumanoidRootPart
-                        local distance = (hrp.Position - SHAFI_CFRAME.Position).Magnitude
-                        
-                        if distance > 50 then
-                            warn("Distance to Shafi:", distance, "- Tweening again...")
-                            updateStatusUI("Status: Going to Shafi", nil)
-                            showNotification("Going to Shafi...", 3)
-                            
-                            pcall(function()
-                                TweenTo(SHAFI_CFRAME)
-                            end)
-                            
-                            reachedShafi = true
-                        else
-                            if not reachedShafi then
-                                warn("Reached Shafi!")
-                                reachedShafi = true
-                            end
-                        end
-                    else
-                        warn("Character died! Waiting for respawn...")
-                        updateStatusUI("Status: Respawning...", nil)
-                        
-                        repeat task.wait(1) until LocalPlayer.Character
-                        
-                        warn("Respawned! Flying up again...")
-                        task.wait(1)
-                        FlyUp(120)
-                        task.wait(1)
-                    end
-                    
-                    task.wait(2)
-                end
-            end)
-
-            repeat task.wait(1) until reachedShafi
-            
-            task.wait(1)
-
-            warn("Collecting Sanguine Art...")
-            updateStatusUI("Status: Collecting Fighting Style", nil)
-            showNotification("Collecting Sanguine Art...", 3)
-            
-            -- พยายามซื้อจนกว่าจะได้
-            local attempts = 0
-            while not HasSanguineArt() and attempts < 10 do
-                local result = CommF:InvokeServer("BuySanguineArt")
-                warn("Buy Result:", result)
-                attempts = attempts + 1
-                task.wait(2)
-            end
-            
-            collectionComplete = true
-            
-            if HasSanguineArt() then
-                warn("Successfully collected Sanguine Art!")
-                showNotification("Collected! Now hopping...", 3)
-            else
-                warn("Failed to collect Sanguine Art after 10 attempts")
-                showNotification("Collection failed! Hopping...", 3)
-            end
-            
-            task.wait(2)
-        end
-        
         -- ถ้ายังไม่ได้ hop ให้ hop
         if not PlayerData.HasHopped then
-            warn("Need to hop server...")
-            showNotification("Hopping server...", 3)
+            warn("Need to hop server first...")
+            showNotification("Purchased! Hopping server...", 3)
             task.wait(2)
             HopServer()
             return
@@ -752,54 +608,11 @@ task.spawn(function()
 
     task.wait(1)
 
-    -- Loop TweenTo จนกว่าจะถึง Shafi หรือซื้อสำเร็จ
-    local reachedShafi = false
-    local purchaseComplete = false
-    
-    task.spawn(function()
-        while not purchaseComplete do
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                local distance = (hrp.Position - SHAFI_CFRAME.Position).Magnitude
-                
-                -- ถ้าอยู่ไกลจาก Shafi เกิน 50 studs ให้ tween ใหม่
-                if distance > 50 then
-                    warn("Distance to Shafi:", distance, "- Tweening again...")
-                    updateStatusUI("Status: Going to Shafi", nil)
-                    showNotification("Going to Shafi...", 3)
-                    
-                    pcall(function()
-                        TweenTo(SHAFI_CFRAME)
-                    end)
-                    
-                    reachedShafi = true
-                else
-                    if not reachedShafi then
-                        warn("Reached Shafi!")
-                        reachedShafi = true
-                    end
-                end
-            else
-                -- ถ้าตัวละครหายไป (ตาย) รอให้เกิดใหม่
-                warn("Character died! Waiting for respawn...")
-                updateStatusUI("Status: Respawning...", nil)
-                
-                repeat task.wait(1) until LocalPlayer.Character
-                
-                warn("Respawned! Flying up again...")
-                task.wait(1)
-                FlyUp(120)
-                task.wait(1)
-            end
-            
-            task.wait(2)
-        end
-    end)
+    warn("Tweening to Shafi...")
+    updateStatusUI("Status: Going to Shafi", nil)
+    showNotification("Going to Shafi...", 3)
+    TweenTo(SHAFI_CFRAME)
 
-    -- รอให้ถึง Shafi ครั้งแรก
-    repeat task.wait(1) until reachedShafi
-    
     task.wait(1)
 
     warn("Start buying Sanguine Art...")
@@ -814,9 +627,6 @@ task.spawn(function()
             warn("Sanguine Art acquired!")
             showNotification("Sanguine Art Acquired!", 5)
             updateStatusUI("Status: Purchase Complete!", nil)
-            
-            -- หยุด loop TweenTo
-            purchaseComplete = true
             
             -- บันทึกว่าซื้อแล้ว
             PlayerData.HasPurchased = true
