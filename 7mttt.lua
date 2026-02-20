@@ -230,16 +230,13 @@ end
 -- โหลดข้อมูลผู้เล่น
 local PlayerData = LoadPlayerData()
 
--- ฟังก์ชันนับ Leviathan Heart (แก้ไขแล้ว)
+-- ฟังก์ชันนับ Leviathan Heart
 local function GetLeviathanHeartCount()
     local count = 0
     pcall(function()
-        local inventory = CommF:InvokeServer("getInventory")
-        if inventory then
-            for _, item in pairs(inventory) do
-                if item.Type == "Material" and item.Name == "Leviathan Heart" then
-                    count = count + (item.Count or 1)
-                end
+        for _, item in next, CommF:InvokeServer("getInventory") do
+            if item.Type == "Material" and item.Name == "Leviathan Heart" then
+                count += item.Count or 1
             end
         end
     end)
@@ -370,7 +367,7 @@ function HopServer()
     local success, result = pcall(function()
         local servers = {}
         local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-        local data = HttpService:JSONDecode(req)
+        local data = HttpService:JsonDecode(req)
         
         if data and data.data then
             for _, server in pairs(data.data) do
@@ -460,10 +457,31 @@ task.spawn(function()
             SavePlayerData(PlayerData)
         end
         
-        -- ถ้ายังไม่ได้ hop ให้ hop
-        if not PlayerData.HasHopped then
-            warn("Need to hop server first...")
-            showNotification("Purchased! Hopping server...", 3)
+        -- เช็คว่ามี Sanguine Art ใน Backpack หรือยัง
+        local hasSanguineArt = HasSanguineArt()
+        
+        if not hasSanguineArt then
+            warn("Response = 1 but no Sanguine Art in Backpack!")
+            warn("Need to buy Sanguine Art first before hopping...")
+            showNotification("Buying Sanguine Art...", 3)
+            
+            -- ไปซื้อ Sanguine Art ก่อน
+            -- ข้ามไปทำงานด้านล่างเหมือนปกติ
+            currentMode = "LoadString2"
+            selectedLoadString = Config.LoadString2
+            
+            local debugInfo = string.format("Response1: %s\nResponse2: %s\nBuying first!", 
+                tostring(response), tostring(response))
+            createStatusUI("Status: Need to Buy First", debugInfo)
+            
+            if selectedLoadString and selectedLoadString ~= "" then
+                warn("Executing LoadString2...")
+                ExecuteLoadString(selectedLoadString)
+            end
+        elseif not PlayerData.HasHopped then
+            -- ถ้ามี Sanguine Art แล้วและยังไม่ได้ hop ให้ hop
+            warn("Has Sanguine Art! Hopping server...")
+            showNotification("Has Sanguine Art! Hopping...", 3)
             task.wait(2)
             HopServer()
             return
@@ -608,11 +626,54 @@ task.spawn(function()
 
     task.wait(1)
 
-    warn("Tweening to Shafi...")
-    updateStatusUI("Status: Going to Shafi", nil)
-    showNotification("Going to Shafi...", 3)
-    TweenTo(SHAFI_CFRAME)
+    -- Loop TweenTo จนกว่าจะถึง Shafi หรือซื้อสำเร็จ
+    local reachedShafi = false
+    local purchaseComplete = false
+    
+    task.spawn(function()
+        while not purchaseComplete do
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local distance = (hrp.Position - SHAFI_CFRAME.Position).Magnitude
+                
+                -- ถ้าอยู่ไกลจาก Shafi เกิน 50 studs ให้ tween ใหม่
+                if distance > 50 then
+                    warn("Distance to Shafi:", distance, "- Tweening again...")
+                    updateStatusUI("Status: Going to Shafi", nil)
+                    showNotification("Going to Shafi...", 3)
+                    
+                    pcall(function()
+                        TweenTo(SHAFI_CFRAME)
+                    end)
+                    
+                    reachedShafi = true
+                else
+                    if not reachedShafi then
+                        warn("Reached Shafi!")
+                        reachedShafi = true
+                    end
+                end
+            else
+                -- ถ้าตัวละครหายไป (ตาย) รอให้เกิดใหม่
+                warn("Character died! Waiting for respawn...")
+                updateStatusUI("Status: Respawning...", nil)
+                
+                repeat task.wait(1) until LocalPlayer.Character
+                
+                warn("Respawned! Flying up again...")
+                task.wait(1)
+                FlyUp(120)
+                task.wait(1)
+            end
+            
+            task.wait(2)
+        end
+    end)
 
+    -- รอให้ถึง Shafi ครั้งแรก
+    repeat task.wait(1) until reachedShafi
+    
     task.wait(1)
 
     warn("Start buying Sanguine Art...")
@@ -625,6 +686,20 @@ task.spawn(function()
 
         if result == 1 or result == 2 then
             warn("Sanguine Art acquired!")
+            
+            -- เช็คว่ามี Sanguine Art ใน Backpack จริงหรือไม่
+            task.wait(1) -- รอให้ item เข้า backpack
+            
+            local hasSanguineArt = HasSanguineArt()
+            
+            if not hasSanguineArt then
+                warn("Purchase success but item not in backpack! Retrying...")
+                showNotification("Item not received! Retrying...", 3)
+                task.wait(3)
+                -- ลอง buy อีกครั้ง
+                continue
+            end
+            
             showNotification("Sanguine Art Acquired!", 5)
             updateStatusUI("Status: Purchase Complete!", nil)
             
