@@ -1,4 +1,6 @@
 repeat task.wait() until _G.POPANGClient
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.Players.LocalPlayer
 
 local GAME_KEY  = "GROWAGARDEN2"
 local CFG       = _G.POPANGClient.Games[GAME_KEY]
