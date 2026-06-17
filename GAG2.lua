@@ -1,17 +1,40 @@
-repeat task.wait() until _G.POPANGClient
 repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game.Players.LocalPlayer
+repeat task.wait() until _G.POPANGClient
 
-local GAME_KEY  = "GROWAGARDEN2"
-local CFG       = _G.POPANGClient.Games[GAME_KEY]
-local AUTO      = CFG.Automatic
-local SETTING   = AUTO.Setting
+local GAME_KEY    = "GROWAGARDEN2"
+local CFG         = _G.POPANGClient.Games[GAME_KEY]
+local AUTO        = CFG.Automatic
+local SETTING     = AUTO.Setting
 
-local Players   = game:GetService("Players")
-local RS        = game:GetService("ReplicatedStorage")
-local HS        = game:GetService("HttpService")
+local Players     = game:GetService("Players")
+local HS          = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
-local Backpack  = LocalPlayer:WaitForChild("Backpack")
+local Backpack    = LocalPlayer:WaitForChild("Backpack")
+local leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local Sheckles    = leaderstats:WaitForChild("Sheckles")
+
+-- ── Format เงิน ───────────────────────────────────────────────
+local function fmtMoney(n)
+    local tiers = {
+        { 1e12, "T" },
+        { 1e9,  "B" },
+        { 1e6,  "M" },
+        { 1e3,  "K" },
+    }
+    for _, t in ipairs(tiers) do
+        if n >= t[1] then
+            local val = n / t[1]
+            -- 1 decimal เฉพาะตอนที่ไม่ใช่จำนวนเต็ม
+            if val < 10 then
+                return ("%.1f%s"):format(val, t[2])
+            else
+                return ("%.0f%s"):format(val, t[2])
+            end
+        end
+    end
+    return tostring(n)
+end
 
 -- ── Helpers ───────────────────────────────────────────────────
 local function setDesc(text)
@@ -21,7 +44,6 @@ local function setDesc(text)
 end
 
 local function accountDone()
-    print("[POPANG] เรียก _G.Horst_AccountChangeDone()")
     if typeof(_G.Horst_AccountChangeDone) == "function" then
         _G.Horst_AccountChangeDone()
     end
@@ -49,15 +71,14 @@ end
 local function readInventory()
     local seeds, pets = {}, {}
     for _, item in ipairs(Backpack:GetChildren()) do
-        local cat = item:GetAttribute("MainCategory")
         local count = item:GetAttribute("Count") or 0
+        local cat   = item:GetAttribute("MainCategory")
 
         if cat == "Seed" then
             local name = item:GetAttribute("SeedTool") or item.Name
             if matchFilter(CFG.Seeds, name) then
                 table.insert(seeds, { name = name, count = count })
             end
-
         elseif item:GetAttribute("Pet") then
             local name = item:GetAttribute("Pet") or item.Name
             local uuid = item:GetAttribute("PetId") or ""
@@ -67,33 +88,32 @@ local function readInventory()
         end
     end
 
-    -- เรียงตามชื่อ
     table.sort(seeds, function(a, b) return a.name < b.name end)
     table.sort(pets,  function(a, b) return a.name < b.name end)
     return seeds, pets
 end
 
 -- ── Description builder ───────────────────────────────────────
-local function buildDescription(seeds, pets)
-    local lines = {}
+local function buildDescription(seeds, pets, money)
+    local parts = {}
 
-    table.insert(lines, "🌱 Seeds")
+    -- 🍍 Seeds
+    local seedParts = {}
     if #seeds == 0 then
-        table.insert(lines, "  (ไม่มี)")
+        table.insert(seedParts, "ไม่มี")
     else
         for _, s in ipairs(seeds) do
-            table.insert(lines, ("  • %-24s x%d"):format(s.name, s.count))
+            table.insert(seedParts, ("%s x%d"):format(s.name, s.count))
         end
     end
+    table.insert(parts, "🍍Seed: " .. table.concat(seedParts, " , "))
 
-    table.insert(lines, "")
-    table.insert(lines, "🐾 Pets")
+    -- 🦄 Pets
+    local petParts = {}
     if #pets == 0 then
-        table.insert(lines, "  (ไม่มี)")
+        table.insert(petParts, "ไม่มี")
     else
-        -- กลุ่ม pet ชื่อเดียวกัน
-        local grouped = {}
-        local order = {}
+        local grouped, order = {}, {}
         for _, p in ipairs(pets) do
             if not grouped[p.name] then
                 grouped[p.name] = 0
@@ -102,11 +122,15 @@ local function buildDescription(seeds, pets)
             grouped[p.name] = grouped[p.name] + 1
         end
         for _, name in ipairs(order) do
-            table.insert(lines, ("  • %-24s x%d"):format(name, grouped[name]))
+            table.insert(petParts, ("%s x%d"):format(name, grouped[name]))
         end
     end
+    table.insert(parts, "🦄Pet: " .. table.concat(petParts, " , "))
 
-    return table.concat(lines, "\n")
+    -- 💸 Money
+    table.insert(parts, "💸Money: " .. fmtMoney(money))
+
+    return table.concat(parts, "  ")
 end
 
 -- ── Auto-send ─────────────────────────────────────────────────
@@ -116,7 +140,6 @@ local function autoSend(seeds)
     if not SETTING.Enabled then return end
     if sentDone then return end
 
-    -- กรอง seed ที่ต้องส่ง
     local toSend = {}
     for _, s in ipairs(seeds) do
         if matchFilter(SETTING.Seeds, s.name) and s.count > 0 then
@@ -125,7 +148,6 @@ local function autoSend(seeds)
     end
 
     if #toSend == 0 then
-        -- ไม่มี seed แล้ว → ChangeAccount
         if SETTING.ChangeAccount then
             accountDone()
             sentDone = true
@@ -133,17 +155,14 @@ local function autoSend(seeds)
         return
     end
 
-    -- ส่งให้ทุก Receiver
     for _, receiver in ipairs(AUTO.Receiver) do
         if typeof(_G.POPANG_Send) == "function" then
-            local ok = _G.POPANG_Send(receiver, toSend)
-            print(("[POPANG] send -> %s | ok=%s"):format(receiver, tostring(ok)))
+            _G.POPANG_Send(receiver, toSend)
         end
     end
 
     sentDone = true
 
-    -- ตรวจ seed หลังส่งว่าหมดจริงไหม
     if SETTING.ChangeAccount then
         task.delay(3, function()
             local seedsAfter, _ = readInventory()
@@ -156,8 +175,7 @@ local function autoSend(seeds)
             if remaining == 0 then
                 accountDone()
             else
-                print(("[POPANG] seed ยังเหลือ %d ชิ้น ยังไม่ accountDone"):format(remaining))
-                sentDone = false  -- ลองใหม่รอบหน้า
+                sentDone = false
             end
         end)
     end
@@ -166,14 +184,11 @@ end
 -- ── Main loop ─────────────────────────────────────────────────
 while true do
     local seeds, pets = readInventory()
-    local desc        = buildDescription(seeds, pets)
+    local money       = Sheckles.Value
+    local desc        = buildDescription(seeds, pets, money)
 
     setDesc(desc)
-    print("[POPANG]\n" .. desc)
-
-    postWebhook(CFG.Webhook,
-        ("```\n[%s]\n%s\n```"):format(GAME_KEY, desc))
-
+    postWebhook(CFG.Webhook, ("```\n[%s]\n%s\n```"):format(GAME_KEY, desc))
     autoSend(seeds)
 
     task.wait(5)
