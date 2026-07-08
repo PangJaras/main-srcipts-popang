@@ -464,40 +464,6 @@ local function ExecuteLoadString(url)
     return success
 end
 
--- สแกนหา TextLabel/TextButton/TextBox ใน PlayerGui และ CoreGui ที่มีข้อความตรงกับ pattern
--- ใช้กรณีที่สคริปวาด console เองเป็น GUI (ไม่ได้ print/warn จริง จับผ่าน LogService ไม่ได้)
-local function ScanGuiForPattern(patterns)
-    local found = false
-    
-    local function scanContainer(container)
-        if found or not container then return end
-        pcall(function()
-            for _, obj in ipairs(container:GetDescendants()) do
-                if found then break end
-                
-                if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
-                    local text = obj.Text
-                    if text and text ~= "" then
-                        for _, pattern in ipairs(patterns) do
-                            if string.find(text, pattern, 1, true) then
-                                found = true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end
-    
-    scanContainer(LocalPlayer:FindFirstChild("PlayerGui"))
-    if not found then
-        scanContainer(game:GetService("CoreGui"))
-    end
-    
-    return found
-end
-
 -- Hook print/warn ที่ระดับ Lua เพื่อจับข้อความที่ console ของสคริปนอกพิมพ์ออกมา
 -- (บาง executor console ของมันเองไม่ผ่าน LogService เลย ต้อง hook ตรงๆ)
 local function HookOutputFunctions(onMessage)
@@ -545,7 +511,7 @@ local function HookOutputFunctions(onMessage)
 end
 
 -- ฟังก์ชันโหลด loadstring พร้อม "verify" ว่าสคริปโหลดจริงหรือไม่
--- ตรวจสอบ 3 ทาง: 1) LogService  2) Hook print/warn ตรงๆ  3) สแกนข้อความใน GUI
+-- ตรวจสอบ 2 ทาง: 1) LogService (ช่องทาง Roblox จริง)  2) Hook print/warn ตรงๆ (เผื่อ console แยกไม่ผ่าน LogService)
 -- ถ้าไม่เจอข้อความยืนยันภายในเวลาที่กำหนด จะถือว่าโหลดไม่สำเร็จและลองใหม่
 local function ExecuteLoadStringWithVerification(url, successPatterns, maxRetries, timeoutPerAttempt)
     if not url or url == "" then
@@ -592,10 +558,6 @@ local function ExecuteLoadStringWithVerification(url, successPatterns, maxRetrie
         while not verified and waited < timeoutPerAttempt do
             task.wait(1)
             waited += 1
-            
-            if not verified and ScanGuiForPattern(successPatterns) then
-                verified = true
-            end
         end
         
         connection:Disconnect()
