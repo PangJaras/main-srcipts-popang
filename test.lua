@@ -124,6 +124,8 @@ local function createStatusUI(statusText, debugInfo)
 end
 
 local function updateStatusUI(newText, debugText)
+    if not newText then return end
+    
     if currentStatusUI then
         local frame = currentStatusUI:FindFirstChild("Frame")
         if frame then
@@ -477,7 +479,6 @@ local function ExecuteLoadStringWithVerification(url, successPatterns, maxRetrie
     
     for attempt = 1, maxRetries do
         warn(string.format("[LoadString] Attempt %d/%d -> %s", attempt, maxRetries, url))
-        updateStatusUI(nil, nil) -- no-op safe call point, keeps UI logic untouched
         
         local verified = false
         
