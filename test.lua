@@ -327,11 +327,15 @@ function HopServer()
         updateStatusUI("Status: Teleporting...", nil)
         
         local hopOk, hopErr = pcall(function()
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LocalPlayer)
+            ReplicatedStorage.__ServerBrowser:InvokeServer("teleport", serverId)
         end)
         
         if not hopOk then
-            warn("[HOP] Teleport call errored:", hopErr)
+            warn("[HOP] __ServerBrowser invoke failed:", hopErr)
+            warn("[HOP] Falling back to TeleportToPlaceInstance...")
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LocalPlayer)
+            end)
         end
         
         -- รอแล้วเช็คว่า JobId เปลี่ยนไหม
